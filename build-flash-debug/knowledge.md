@@ -1,11 +1,51 @@
 # 经验知识库
 
 > 由 build-flash-debug skill 自动维护。执行前读取用于快速诊断，执行后追加新发现。
-> 按 编译 / 烧录 / 串口 / 代码调试 四个 topic 组织，快速定位对应阶段的问题。
+> 按 仓库管理 / 环境安装 / 编译 / 烧录 / 串口 / 代码调试 六个 topic 组织，快速定位对应阶段的问题。
 
 ---
 
-## Topic 1: 编译
+## Topic 0: 仓库管理
+
+### 0-1. 子模块下载耗时长
+- **现象**: `git submodule update --init --recursive` 需要 3-5 分钟，58 个子模块
+- **原因**: 仓库模块多，部分模块体量大
+- **解决**: 超时设为 300s；若只需部分模块，可 `git submodule update --init <specific_module>`
+- **次数**: 1（2026-02-25, 首次拉取）
+
+### 0-2. 子模块重定向警告
+- **现象**: `warning: 重定向到 https://...collections-c.git/`
+- **原因**: .gitmodules 中 URL 末尾缺少 `.git`，服务器自动重定向
+- **判定**: 不影响功能，属正常现象，无需处理
+- **次数**: 1（2026-02-25, collections-c / ltlsf）
+
+---
+
+## Topic 1: 环境安装
+
+### 1-1. 需要两个安装脚本
+- **现象**: 只运行 `prepare_listenai_tools.sh` 后编译报找不到 gcc
+- **原因**: `prepare_listenai_tools.sh` 只安装构建工具（cmake/ninja），GCC 交叉编译工具链需要单独运行 `prepare_toolchain.sh`
+- **解决**: 依次运行两个脚本：`prepare_listenai_tools.sh` → `prepare_toolchain.sh`
+- **次数**: 1（2026-02-25, 首次安装）
+
+### 1-2. cskburn 缺少执行权限
+- **现象**: `权限不够` 错误
+- **原因**: 下载解压后的二进制文件未保留执行权限
+- **解决**: `chmod +x ./tools/burn/cskburn`
+- **次数**: 1（2026-02-25）
+
+### 1-3. 仓库中存在两个 cskburn
+- **现象**: 使用 `listenai-dev-tools/listenai-tools/cskburn/cskburn` 烧录失败
+- **原因**: 仓库中有两个不同版本的 cskburn：
+  - `./tools/burn/cskburn` — 正确版本，支持 `-C arcs`，烧录前自动擦除
+  - `./listenai-dev-tools/listenai-tools/cskburn/cskburn` — 通用版本，不支持 `-C`，烧录行为不正确
+- **解决**: 始终使用 `./tools/burn/cskburn -C arcs`
+- **次数**: 1（2026-02-25, lisa_wdt basic）
+
+---
+
+## Topic 2: 编译
 
 （暂无记录）
 

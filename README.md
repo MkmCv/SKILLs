@@ -7,9 +7,11 @@
 ### 1) `build-flash-debug/`
 
 - **名称**：`build-flash-debug`
-- **用途**：面向 ARCS SDK 示例程序的「编译 → 烧录 → 串口验证」全自动工作流（含失败时的自动修复与验证报告）
+- **用途**：ARCS SDK 工具链层能力：**拉取仓库、安装开发环境、编译、烧录、运行、日志读取**（代码开发/理解交由模型本体）
 - **入口文件**：`build-flash-debug/SKILL.md`
 - **分发包**：`build-flash-debug.zip`
+- **状态**：开发中，欢迎反馈使用过程中的 bug / 兼容性问题，并欢迎补充更好的用法示例
+- **使用示例**：见 `docs/build-flash-debug-usage.md`
 
 ### 2) `notebooklm-video-scripter/`
 

@@ -1,61 +1,65 @@
-# 执行报告：lisa_wdt basic
+# 执行报告: lisa_wdt basic
 
 **日期**: 2026-02-25
-**操作者环境**: /dev/ttyACM0, BOARD=arcs_evb
-**最终状态**: 成功
+**项目**: samples/drivers/devices/lisa_wdt/basic
+**板型**: arcs_evb
+**串口设备**: /dev/ttyACM0
 
 ## 执行摘要
 
-编译、烧录 lisa_wdt basic 示例并通过串口验证运行正常。WDT 看门狗基础功能（配置、启动、喂狗）全部符合预期。过程中遇到串口相关的环境问题，均已解决。
+| 步骤 | 状态 |
+|------|------|
+| 拉取仓库 | ✅ 成功 |
+| 安装工具链 | ✅ 成功 |
+| 编译 | ✅ 成功 |
+| 烧录 | ✅ 成功（用户手动使用 `./tools/burn/cskburn` 完成） |
+| 运行验证 | ✅ 成功，日志与 README 预期完全匹配 |
+
+## 编译信息
+
+- **编译产物**: `build/arcs.bin` (131KB)
+- **版本**: v0.0.1-1003-g4e2145a2864e
+- **内存使用**: PSRAM 128KB/8MB (1.56%), FLASH 117KB/8176KB (1.41%), SRAM 41KB/256KB (16%)
 
 ## 遇到的问题
 
-### [串口通信] picocom 在非 TTY 环境不可用
-- **现象**: picocom 报 `STDIN is not a TTY`，立即退出
-- **是否偶发**: 否（必现，因 Claude Code Bash 无 TTY）
-- **根因**: picocom 是交互式终端程序，需要 TTY 环境
-- **解决方案**: 改用 pyserial (`import serial`) 读取串口
-- **耗时**: 1 轮
+### 问题 1: 使用了错误的 cskburn（关键问题）
+- **现象**: `listenai-dev-tools/listenai-tools/cskburn/cskburn` 烧录时每个奇数 block 需要 2 次重试，最终在 block 31 失败（`ERROR: Failed burning partition 1: 01`）；不支持 `-C arcs` 参数
+- **是否偶发**: 否，稳定复现
+- **根因**: 仓库中有两个 cskburn 工具：
+  - `./tools/burn/cskburn` — **正确的**，支持 `-C arcs` 指定芯片类型，烧录前会自动擦除，烧录成功
+  - `./listenai-dev-tools/listenai-tools/cskburn/cskburn` — **错误的**，通用版本，不支持 `-C` 参数，缺少擦除步骤导致写入失败
+- **解决方案**: 始终使用 `./tools/burn/cskburn -C arcs -s <device> -b 3000000 0x0 <bin>`
 
-### [串口通信] 首次读取乱码
-- **现象**: `stty` + `cat` 方式读取时全部乱码
-- **是否偶发**: 否（stty 方式必现乱码）
-- **根因**: `stty` 方式缺少 DTR/RTS 控制，串口状态不正确
-- **解决方案**: 改用 pyserial 并控制 DTR/RTS 信号
-- **耗时**: 1 轮
+### 问题 2: cskburn 权限不足
+- **现象**: `权限不够` 错误
+- **根因**: listenai-dev-tools 中的 cskburn 下载后无执行权限
+- **解决方案**: `chmod +x cskburn`
 
-### [串口通信] DTR/RTS 翻转导致双重启动
-- **现象**: 板子启动日志出现两次
-- **是否偶发**: 否（两次验证一致复现，但不是代码问题）
-- **根因**: DTR/RTS 信号序列产生两个复位边沿，属硬件信号层面的正常行为
-- **解决方案**: 以第二次启动后的稳定性为判定依据。验证第二次启动后 13+ 秒无重启
-- **耗时**: 2 轮验证
+### 问题 3: 烧录时 Failed opening device
+- **现象**: cskburn 报 `ERROR: Failed opening device`
+- **根因**: 板子处于正常运行模式，未进入烧录模式
+- **解决方案**: 板子会自动进入烧录模式（cskburn 的 `Waiting for device...` 会等待），需要确保设备连接正常
 
-### [串口通信] USB CDC 断连
-- **现象**: 串口读取时报 `SerialException: device disconnected`
-- **是否偶发**: 是（仅在特定 DTR/RTS 翻转时序下触发）
-- **根因**: 过激的 DTR/RTS 翻转导致 USB 设备重新枚举
-- **解决方案**: catch 异常 → 等待 2-3 秒 → 重新扫描设备 → 重连
-- **耗时**: 1 轮
+### 问题 4: GCC 工具链需单独安装
+- **现象**: `prepare_listenai_tools.sh` 只安装 cmake/ninja 等构建工具，不包含 GCC
+- **根因**: GCC 工具链需要额外运行 `prepare_toolchain.sh`
+- **解决方案**: 依次运行 `prepare_listenai_tools.sh` 和 `prepare_toolchain.sh`
 
-### [烧录] cskburn ETIMEDOUT / EBUSY
-- **现象**: 重新烧录时报 ETIMEDOUT，随后报 EBUSY
-- **是否偶发**: 否（前一个 serial 进程未释放时必现）
-- **根因**: 之前的 python serial 进程仍占用串口
-- **解决方案**: `fuser /dev/ttyACM0` 找到 PID → `kill PID` → 重试
-- **耗时**: 2 轮
+## 串口日志验证
 
-## 关键数据
+固件版本 `v0.0.1-1003-g4e2145a2864e` 与编译产物一致，输出与 README 预期完全匹配：
+```
+=== LISA WDT basic example ===
+wdt0 device ready
+WDT configured: int_timeout=300 ms, rst_timeout=200 ms (total=500 ms)
+WDT started
+WDT state: RUNNING
+Feeding WDT every 300 ms
+```
 
-- 编译时间: ~30 秒（Clean + Release 两次）
-- 编译产物大小: 134,016 bytes (arcs.bin)
-- 烧录用时: ~5 秒
-- 串口验证时长: 15 秒 × 2 轮
+## SKILL 优化建议
 
-## 给后续使用者的建议
-
-1. **不要用 picocom**：在 Claude Code 环境下用 pyserial 替代，picocom 需要 TTY
-2. **串口读取前先清缓冲区**：`ser.reset_input_buffer()` 避免读到残留数据
-3. **烧录前确认串口空闲**：先 `fuser` 检查，否则 cskburn 会报 EBUSY
-4. **双重启动不是 bug**：DTR/RTS 复位序列会产生两次启动，以第二次后的稳定性为准
-5. **喂狗循环无可见输出**：feed 函数只有 LOGD 级别日志，持续运行时串口看不到任何输出是正常的
+1. **烧录命令路径修正（重要）**: SKILL.md 中烧录命令应使用 `./tools/burn/cskburn -C arcs`，而非 `listenai-dev-tools/listenai-tools/cskburn/cskburn`。两者是不同的工具，后者不支持 `-C` 参数且烧录行为不正确
+2. **安装步骤补充**: SKILL.md 的安装步骤应包含两个脚本：`prepare_listenai_tools.sh`（构建工具）+ `prepare_toolchain.sh`（GCC 工具链）
+3. **cskburn 权限**: 建议安装后自动 `chmod +x`
