@@ -15,7 +15,7 @@ description: ARCS SDK 工具链层：拉取仓库、环境安装、编译、烧�
 
 - 复现稳定的 bug（最好附上命令输出/日志片段）
 - 环境兼容性问题（发行版、Python 版本、串口设备类型等）
-- 更好的“触发语句/使用示例”（请提交到仓库的 `docs/` 文档中，避免放进 skill 包内）
+- 更好的"触发语句/使用示例"（请提交到仓库的 `docs/` 文档中，避免放进 skill 包内）
 
 ## 已验证能力（已跑通）
 
@@ -24,7 +24,7 @@ description: ARCS SDK 工具链层：拉取仓库、环境安装、编译、烧�
 
 ## 使用示例
 
-为避免把“触发语句示例”打进 skill 包内，示例请统一维护在仓库文档：
+为避免把"触发语句示例"打进 skill 包内，示例请统一维护在仓库文档：
 
 - `docs/build-flash-debug-usage.md`
 
@@ -88,7 +88,7 @@ chmod +x ./tools/burn/cskburn
 - `listenai-dev-tools/gcc/bin/riscv64-unknown-elf-gcc` 是否可执行
 - `listenai-dev-tools/listenai-tools/cmake/bin/cmake` 是否可执行
 - `./tools/burn/cskburn` 是否可执行
-- pyserial 是否安装：`python3 -c "import serial"` ，未安装则 `pip3 install pyserial`
+- ~~pyserial 是否安装：`python3 -c "import serial"` ，未安装则 `pip3 install pyserial`~~
 
 如果检查通过，跳过安装。
 
@@ -161,32 +161,27 @@ Finished
 **输入**：无（烧录完成后自动执行）或独立调用
 **输出**：串口日志文本
 
-使用 pyserial 读取串口日志：
+**推荐方法（使用 stty + cat）**：
+```bash
+# 1. 设置正确的波特率（921600）并配置串口
+stty -F <串口设备> raw speed 921600 -echo -echoe -echok
 
-```python
-import serial, time
-ser = serial.Serial('<串口设备>', 921600, timeout=0.5)
-ser.reset_input_buffer()
-# DTR/RTS 复位序列
-ser.dtr = False; ser.rts = False
-time.sleep(0.1)
-ser.dtr = True; ser.rts = True
-time.sleep(0.1)
-ser.dtr = False; ser.rts = False
-time.sleep(0.5)
-# 读取指定时长的输出
-end = time.time() + <读取秒数>
-while time.time() < end:
-    data = ser.read(ser.in_waiting or 1)
-    if data:
-        print(data.decode('utf-8', errors='replace'), end='', flush=True)
-ser.close()
+# 2. 读取串口输出（带超时，避免无限等待）
+timeout <读取秒数> cat <串口设备>
+```
+
+**备用方法（如果 stty 不可用）**：
+```bash
+# 直接使用 timeout + cat（依赖系统默认波特率设置）
+timeout <读取秒数> cat <串口设备>
 ```
 
 **串口问题处理**：
-- **乱码** → 清缓冲区重试，或等板子完全启动后再读
+- **乱码** → 确保波特率设置正确（921600），或等板子完全启动后再读
 - **设备断连** → 关闭连接 → 等 2-3 秒 → 重新扫描设备 → 重连
 - **无输出** → 提醒用户按 Reset 键，或重新烧录
+- **权限问题** → 确保用户在 uucp/dialout 组中
+- **设备占用** → 读取前检查是否有其他进程占用（fuser <串口设备>）
 
 **日志返回给 Claude Code**，由 Claude Code 判断程序是否正常运行。
 
@@ -260,3 +255,6 @@ Claude Code 调用顺序：
 3. **设备号动态扫描**：每次操作前都扫描，不硬编码
 4. **异常先确认再处理**：重复验证 2-3 次，确认非偶发后再处理
 5. **安全优先**：不执行 `rm -rf` 等危险操作
+6. **避免使用的方法**：
+   - **picocom/minicom**: 在非交互式环境中无法正常工作（需要 TTY）
+   - **pyserial**: 需要额外安装 Python 包，在受限环境中可能不可用
