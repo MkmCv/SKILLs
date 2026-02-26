@@ -1,13 +1,13 @@
 ---
-name: build-flash-debug
-description: ARCS SDK 工具链层：拉取仓库、环境安装、编译、烧录、运行、日志读取。代码开发由 Claude Code 本身负责。
+name: arcs-dev-tools
+description: 面向 coding agent（Cursor/Claude Code 等）的 ARCS SDK 工具链层操作：拉取仓库、环境安装、编译、烧录、运行、日志读取。代码开发由上层代码代理负责。
 ---
 
 # ARCS SDK 工具链
 
-为 Claude Code 提供与 ARCS 硬件交互的工具链能力：拉取仓库、安装开发环境、编译、烧录、运行、日志读取。
+为 coding agent（Cursor / Claude Code 等）提供与 ARCS 硬件交互的工具链能力：拉取仓库、安装开发环境、编译、烧录、运行、日志读取。
 
-**本 skill 只负责工具链操作，不负责代码编写和理解。** 代码开发、需求理解、bug 分析由 Claude Code 本身完成。
+**本 skill 只负责工具链操作，不负责代码编写和理解。** 代码开发、需求理解、bug 分析由上层代码代理完成。
 
 ## 当前状态
 
@@ -26,7 +26,7 @@ description: ARCS SDK 工具链层：拉取仓库、环境安装、编译、烧�
 
 为避免把"触发语句示例"打进 skill 包内，示例请统一维护在仓库文档：
 
-- `docs/build-flash-debug-usage.md`
+- `docs/arcs-dev-tools-usage.md`
 
 ### 批量模式
 
@@ -48,7 +48,7 @@ description: ARCS SDK 工具链层：拉取仓库、环境安装、编译、烧�
 ## 核心原则：先确认非偶发，再处理
 
 遇到异常现象时，**必须重复验证 2-3 次确认是否稳定复现**，再决定是否处理。
-- 每次都复现 → 真实问题，返回给 Claude Code 处理
+- 每次都复现 → 真实问题，返回给上层代码代理处理
 - 仅偶发 → 标记为环境因素，不作为代码问题
 
 ## 工具链操作
@@ -107,9 +107,9 @@ bash ./build.sh -C -DBOARD=arcs_evb && bash ./build.sh -r -w -DBOARD=arcs_evb
 - 没有 → 用仓库根目录的 `build.sh -S <项目相对路径>`
 
 **编译失败时**：
-- 将完整错误输出返回给 Claude Code，由 Claude Code 分析并修改代码
+- 将完整错误输出返回给上层代码代理，由其分析并修改代码
 - 查阅 knowledge.md 对应 topic 看是否有已知解决方案
-- Claude Code 修改代码后，再次调用本操作重新编译
+- 上层代码代理修改代码后，再次调用本操作重新编译
 
 **确认编译产物**：
 - 在 `build/` 下查找 `.bin` 文件
@@ -183,7 +183,7 @@ timeout <读取秒数> cat <串口设备>
 - **权限问题** → 确保用户在 uucp/dialout 组中
 - **设备占用** → 读取前检查是否有其他进程占用（fuser <串口设备>）
 
-**日志返回给 Claude Code**，由 Claude Code 判断程序是否正常运行。
+**日志返回给上层代码代理**，由其判断程序是否正常运行。
 
 ### 操作 6：检查硬件连接
 
@@ -201,29 +201,29 @@ ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
 
 ### 流水线 A：运行现有示例
 
-Claude Code 调用顺序：
+上层代码代理调用顺序：
 1. 检查硬件连接
-2. 定位示例目录，阅读 README 和源码（Claude Code 自己做）
+2. 定位示例目录，阅读 README 和源码（上层代码代理自己做）
 3. **编译**（操作 3）
 4. **烧录**（操作 4）
 5. **日志读取**（操作 5）
-6. Claude Code 对比日志和预期输出，判断结果
+6. 上层代码代理对比日志和预期输出，判断结果
 
 ### 流水线 B：编写新代码并验证
 
-Claude Code 调用顺序：
+上层代码代理调用顺序：
 1. 检查硬件连接
-2. Claude Code 参考仓库中的示例和 API，编写代码
-3. **编译**（操作 3）→ 失败则 Claude Code 改代码 → 重新编译（循环）
+2. 上层代码代理参考仓库中的示例和 API，编写代码
+3. **编译**（操作 3）→ 失败则上层代码代理改代码 → 重新编译（循环）
 4. **烧录**（操作 4）
 5. **日志读取**（操作 5）
-6. Claude Code 判断是否符合预期 → 不符合则改代码 → 回到步骤 3（循环）
+6. 上层代码代理判断是否符合预期 → 不符合则改代码 → 回到步骤 3（循环）
 
 ## 问题记录与经验积累
 
 ### 执行报告
 
-每次执行结束后，在 `.claude/skills/build-flash-debug/reports/` 下生成报告：
+每次执行结束后，在**当前 skill 目录**下的 `reports/` 生成报告：
 
 **文件名**：`YYYY-MM-DD_<项目名称>.md`
 
@@ -231,7 +231,7 @@ Claude Code 调用顺序：
 
 ### 经验知识库
 
-文件：`.claude/skills/build-flash-debug/knowledge.md`
+文件：`knowledge.md`（与 `SKILL.md` 同级）
 
 按 6 个 topic 组织：**仓库管理 / 环境安装 / 编译 / 烧录 / 串口 / 代码调试**。遇到问题时只读对应 topic。
 

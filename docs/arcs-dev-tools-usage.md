@@ -1,8 +1,24 @@
-# build-flash-debug 使用示例（可复制粘贴）
+# arcs-dev-tools 使用示例（可复制粘贴）
 
-这里存放 `build-flash-debug` 的“触发语句/使用方式”示例，方便快速验证工具链能力。
+这里存放 `arcs-dev-tools` 的“触发语句/使用方式”示例，方便快速验证工具链能力。
 
-> 约定：**使用示例不放在 skill 包内**（不放进 `build-flash-debug/` 目录），统一维护在 `docs/` 中，避免打包分发时夹带大量文档内容。
+> 约定：**使用示例不放在 skill 包内**（不放进 `skills/arcs-dev-tools/` 目录），统一维护在 `docs/` 中，避免打包分发时夹带大量文档内容。
+
+## 安装（npx skills）
+
+本 skill 可通过 `vercel-labs/skills` 的 CLI 安装。
+
+### 从 main 分支安装
+
+```bash
+npx skills add https://github.com/MkmCv/SKILLs --skill arcs-dev-tools -a cursor --copy -y
+```
+
+### 从指定分支安装（试用未合并更新）
+
+```bash
+npx skills add https://github.com/MkmCv/SKILLs/tree/feat/arcs-dev-tools-npx-skills-install/skills/arcs-dev-tools -a cursor --copy -y
+```
 
 ## 示例 1：运行某个 sample（自动查找 + 编译烧录 + 成功/失败判定）
 
