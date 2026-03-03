@@ -44,7 +44,7 @@
 **在线文档参考:**
 - 快速入门（编译/烧录命令）: `get_started.html`
 - GDB 调试指南: `gdb.html`
-- 完整 URL 映射见 `references/knowledge/online-docs.md`
+- 完整 URL 映射见 `knowledge/online-docs.md`
 
 ---
 
@@ -137,6 +137,12 @@
    └─ 失败 → 跳转 Step 3B 诊断
 ```
 
+> **为什么需要手动按按钮？**
+> - 烧录需要进入 BOOT 模式：按住 BOOT + 复位
+> - 烧录后不会自动复位：需要按 RESET 启动新固件
+> - 这是 cskburn 工具的限制，不是 skill 的问题
+> - 如果板子的复位电路连接了 DTR，可以使用 `serial_read.py --dtr` 自动复位（取决于硬件设计）
+
 **命令构造示例**:
 ```bash
 # 基本烧录
@@ -151,50 +157,65 @@
 
 #### 2C: 串口日志查看
 
-**检测可用工具**（Agent 主动执行）:
-
+**使用 `serial_read.py`**（Skill 内置工具，纯 Python stdlib）：
 ```bash
-# 按优先级检测已安装的串口工具
-which picocom 2>/dev/null && echo "picocom available"
-which minicom 2>/dev/null && echo "minicom available"
-which screen 2>/dev/null && echo "screen available"
-python3 -c "import serial.tools.miniterm" 2>/dev/null && echo "miniterm available"
+python3 <skill_dir>/scripts/serial_read.py <串口设备> -b 921600 -t <读取秒数>
 ```
+
+> **`<skill_dir>`** 即本技能安装目录，与 SKILL.md 同级。
 
 **检测串口设备**:
 ```bash
 ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
 ```
 
-**推荐命令**（按优先级）:
+**推荐命令**:
 
 | 工具 | 命令 | 退出方式 |
 |------|------|----------|
+| **serial_read.py** (推荐) | `python3 <skill_dir>/scripts/serial_read.py /dev/ttyUSB0 -t 30` | `Ctrl-C` |
 | picocom | `picocom -b 921600 /dev/ttyUSB0` | `Ctrl-A Ctrl-X` |
 | minicom | `minicom -D /dev/ttyUSB0 -b 921600` | `Ctrl-A X` |
 | screen | `screen /dev/ttyUSB0 921600` | `Ctrl-A K` 然后按 `Y` |
-| miniterm | `python3 -m serial.tools.miniterm /dev/ttyUSB0 921600` | `Ctrl-]` |
+
+**serial_read.py 优势**:
+- 无需安装依赖（纯 Python 标准库实现）
+- 支持 DTR/RTS 信号控制，可用于复位板子
+- 默认波特率 921600（ARCS 默认）
+- 支持超时自动退出
 
 **关键参数说明**:
-- **波特率 921600** — ARCS syslog UART 默认波特率
-- **8N1** — 8 数据位、无校验、1 停止位（所有工具默认值）
+- 波特率 921600 — ARCS syslog UART 默认波特率
+- 8N1 — 8 数据位、无校验、1 停止位（默认值）
 - 串口设备通常是 `/dev/ttyUSB0`，多设备时需确认
 
-**执行流程**:
+**serial_read.py 进阶用法**:
+```bash
+# 指定波特率
+python3 <skill_dir>/scripts/serial_read.py /dev/ttyUSB0 -b 115200
 
-```
-1. 检测可用串口工具和设备
-2. 根据检测结果推荐命令
-3. 给出完整命令和退出方式
-4. 提示: 串口监视工具会独占终端，Agent 无法替你执行
-   - 建议用户在另一个终端窗口中运行
-   - 或使用 Bash 工具的 run_in_background 模式（有超时限制）
+# 设置超时（秒）
+python3 <skill_dir>/scripts/serial_read.py /dev/ttyUSB0 -t 60
+
+# 拉高 DTR 信号（可触发硬件复位，取决于板子设计）
+python3 <skill_dir>/scripts/serial_read.py /dev/ttyUSB0 --dtr
 ```
 
-**常用操作提示**:
-- 日志保存: `picocom -b 921600 /dev/ttyUSB0 --logfile output.log`
-- 带时间戳: `picocom -b 921600 /dev/ttyUSB0 | ts '[%Y-%m-%d %H:%M:%S]'`（需安装 moreutils）
-- 串口权限不足时: `sudo usermod -a -G dialout $USER`（需重新登录生效）
+**Agent 执行方式**（可直接帮用户运行）:
+
+当用户需要查看串口日志时，Agent 应主动执行：
+
+```bash
+# 1. 先检测串口设备
+ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
+
+# 2. 使用 run_in_background 模式执行 serial_read.py（设置较长超时）
+python3 <skill_dir>/scripts/serial_read.py /dev/ttyUSB0 -t 30
+```
+
+- 使用 `run_in_background: true` 模式让 Agent 在后台运行
+- 默认超时 30 秒足够捕获启动日志
+- 如果需要持续监视，使用更长超时或提示用户自行在终端运行
 
 ---
 
@@ -202,7 +223,7 @@ ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
 
 **通用诊断流程**:
 1. 让用户提供**完整的错误输出**（或从 Step 2 的执行结果中直接获取）
-2. 读取 `references/knowledge/build-issues.md` 查找已知问题模式
+2. 读取 `knowledge/build-issues.md` 查找已知问题模式
 3. 确认用户的**板型**和**项目路径**
 4. 如需要，检查用户的 `prj.conf` 和 `CMakeLists.txt`
 5. 匹配已知模式 → 给出解决方案；未知模式 → 引导式排查
@@ -258,7 +279,7 @@ ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
 | `section .xxx not found` | 自定义段 .ld.in 未注册 | 在 CMakeLists.txt 中添加 `listenai_add_custom_section()` |
 | `will not fit in region` / `overflow` | ROM/RAM 空间不足 | 检查 .map 文件，优化大数组/启用 XIP/调整栈大小 |
 
-**内存溢出分析指引** — 读取 `references/knowledge/build-issues.md` 第 3 节和第 7 节获取完整指引
+**内存溢出分析指引** — 读取 `knowledge/build-issues.md` 第 3 节和第 7 节获取完整指引
 
 快速步骤:
 ```
@@ -363,7 +384,7 @@ ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
 ### Step 4: 知识沉淀
 
 如果在诊断过程中遇到新类型的问题：
-1. 记录到 `references/knowledge/build-issues.md` 对应分类下
+1. 记录到 `knowledge/build-issues.md` 对应分类下
 2. 包含: 错误模式、根因、解决方案
 3. 若为常见问题，同步更新本 SKILL.md 的诊断表格
 
@@ -371,7 +392,7 @@ ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
 
 ## 在线文档参考
 
-需要完整参数说明或详细配置时，WebFetch 对应页面（URL 前缀见 `references/knowledge/online-docs.md`）：
+需要完整参数说明或详细配置时，WebFetch 对应页面（URL 前缀见 `knowledge/online-docs.md`）：
 
 | 内容 | 文档路径 |
 |------|----------|
