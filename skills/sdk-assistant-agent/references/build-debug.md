@@ -151,22 +151,35 @@
 
 #### 2C: 串口日志查看
 
-**检测可用工具**（Agent 主动执行）:
-
+**检测串口设备**（每次操作前执行）:
 ```bash
-# 按优先级检测已安装的串口工具
-which picocom 2>/dev/null && echo "picocom available"
-which minicom 2>/dev/null && echo "minicom available"
-which screen 2>/dev/null && echo "screen available"
-python3 -c "import serial.tools.miniterm" 2>/dev/null && echo "miniterm available"
+ls -l /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
 ```
 
-**检测串口设备**:
-```bash
-ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
+---
+
+**场景 A：Agent 自动抓取（默认）**
+
+实现编译→烧录→抓日志的完整闭环，无需用户手动按 Reset 或开终端。仅依赖本 skill 自带的 `serial_read.py` + SDK 仓库的 `cskburn`，零外部依赖。
+
+**核心约束**：串口同一时间只能被一个进程占用。执行 cskburn 或串口读取前，必须先 `fuser <设备>` 检查，有占用则 `kill` 释放。
+
+**执行步骤**：
+
+```
+1. 释放串口: fuser <设备> 2>/dev/null → 有占用则 kill <PID>
+2. 若需从冷启动抓日志: ./tools/burn/cskburn -C arcs -s <设备> --chip-id → sleep 1～2
+   （不依赖 DTR/RTS，ARCS EVB 上 DTR 未必接复位电路）
+3. 抓取: python3 <skill_dir>/references/scripts/serial_read.py <设备> -b 921600 -t <秒数> > /tmp/arcs_serial.log 2>&1
+   （<skill_dir> 为本 skill 目录，如 .claude/skills/sdk-assistant-agent；限时读取、非 TTY 可用、仅 Python 标准库）
+4. 读取: 读取 /tmp/arcs_serial.log，分析并反馈给用户
 ```
 
-**推荐命令**（按优先级）:
+---
+
+**场景 B：用户手动交互式查看**
+
+当用户想自己持续监控串口输出时，推荐以下工具（在用户终端运行）：
 
 | 工具 | 命令 | 退出方式 |
 |------|------|----------|
@@ -175,26 +188,10 @@ ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
 | screen | `screen /dev/ttyUSB0 921600` | `Ctrl-A K` 然后按 `Y` |
 | miniterm | `python3 -m serial.tools.miniterm /dev/ttyUSB0 921600` | `Ctrl-]` |
 
-**关键参数说明**:
-- **波特率 921600** — ARCS syslog UART 默认波特率
-- **8N1** — 8 数据位、无校验、1 停止位（所有工具默认值）
-- 串口设备通常是 `/dev/ttyUSB0`，多设备时需确认
-
-**执行流程**:
-
-```
-1. 检测可用串口工具和设备
-2. 根据检测结果推荐命令
-3. 给出完整命令和退出方式
-4. 提示: 串口监视工具会独占终端，Agent 无法替你执行
-   - 建议用户在另一个终端窗口中运行
-   - 或使用 Bash 工具的 run_in_background 模式（有超时限制）
-```
-
-**常用操作提示**:
+- 波特率 **921600**，8N1；串口设备通常是 `/dev/ttyUSB0`，多设备时需确认
+- 串口监视工具会独占终端，建议用户在另一个终端运行
 - 日志保存: `picocom -b 921600 /dev/ttyUSB0 --logfile output.log`
-- 带时间戳: `picocom -b 921600 /dev/ttyUSB0 | ts '[%Y-%m-%d %H:%M:%S]'`（需安装 moreutils）
-- 串口权限不足时: `sudo usermod -a -G dialout $USER`（需重新登录生效）
+- 权限不足时: `sudo usermod -a -G dialout $USER`（需重新登录）
 
 ---
 
@@ -318,6 +315,8 @@ ls -l /dev/ttyUSB* 2>/dev/null || ls -l /dev/ttyACM* 2>/dev/null
 
 ```
 无日志输出
+├─ 烧录后/刚连接无输出（优先尝试，无需用户按 Reset）
+│   └─ 按 2C「Agent 自动抓取日志」闭环：释放串口 → cskburn --chip-id 复位 → sleep 1～2 → 再抓取
 ├─ 检查物理连接
 │   ├─ 波特率是否 921600？
 │   ├─ TX/RX 是否反接？
